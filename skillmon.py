@@ -357,10 +357,24 @@ def prune(rows, a):
         return
     if loose:
         dest.mkdir(parents=True)
+        # ~/.claude/skills/* 는 대개 상대 심링크다. 그냥 mv 하면 상대 경로가
+        # 깨져 백업이 dangling link 가 되므로, 링크는 지우고 되살리는 법을
+        # restore.sh 에 적는다.
+        lines = ["#!/bin/sh", "# skillmon restore"]
         for r in loose:
-            shutil.move(r["path"], dest / r["skill"])
-            print("moved", r["skill"])
-        print(f"복구: mv {dest}/<name> <원위치>")
+            src = Path(r["path"])
+            if src.is_symlink():
+                lines.append(f"ln -s {os.readlink(src)!r} {str(src)!r}")
+                src.unlink()
+                print("unlinked", r["skill"])
+            else:
+                shutil.move(str(src), dest / r["skill"])
+                lines.append(f"mv {str(dest / r['skill'])!r} {str(src)!r}")
+                print("moved", r["skill"])
+        sh = dest / "restore.sh"
+        sh.write_text("\n".join(lines) + "\n")
+        sh.chmod(0o755)
+        print(f"복구: sh {sh}")
     for pid in sorted(plugs):
         rc = subprocess.run(["claude", "plugin", "uninstall", pid, "-y"]).returncode
         print(("uninstalled " if rc == 0 else "실패(수동 /plugin) ") + pid)

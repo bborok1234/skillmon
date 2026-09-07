@@ -80,7 +80,7 @@ The Codex gap matters more than it sounds. `~/.claude/skills/*` is very often a 
 
 - Nothing is deleted or written without an explicit `y`.
 - `--off` writes a settings toggle and backs up the original file. Fully reversible.
-- `--prune` moves skills to `~/.claude/backups/skillmon-<timestamp>/` rather than deleting them.
+- `--prune` moves skills to `~/.claude/backups/skillmon-<timestamp>/` rather than deleting them, and writes a `restore.sh` there that puts every one of them back. Symlinked skills (`~/.claude/skills/*` is often a relative symlink into a shared `~/.agents/skills`) are unlinked rather than moved, because moving a relative symlink breaks it — the restore script recreates the link instead.
 - A plugin is only uninstalled when *every* skill it ships is unused. Otherwise it is skipped, with the reason printed.
 - Bundled and policy-managed skills are never touched — only what lives in your own skill and plugin directories.
 
@@ -92,7 +92,7 @@ The Codex gap matters more than it sounds. `~/.claude/skills/*` is very often a 
 
 Claude Code 내장 `/plugin stats`(구 `/skill-doctor`)가 하는 일은 전부 하고, 거기에 더해 **Codex 사용량**을 함께 봅니다. `~/.claude/skills` 가 `~/.agents/skills` 심링크인 경우가 많아 두 에이전트가 같은 파일을 공유하는데, Claude Code 만 보는 리포트는 Codex 전용 스킬을 "미사용"으로 판정합니다. 그대로 지우면 사고입니다.
 
-`--off` 는 `settings.json` 토글이라 되돌릴 수 있고, `--prune` 은 삭제가 아니라 백업 폴더로 옮깁니다. 둘 다 실행 전에 무엇을 할지 전부 출력하고 확인을 받습니다.
+`--off` 는 `settings.json` 토글이라 되돌릴 수 있고, `--prune` 은 삭제가 아니라 백업 폴더로 옮기고, 전부 되돌리는 `restore.sh` 를 같이 씁니다. 둘 다 실행 전에 무엇을 할지 전부 출력하고 확인을 받습니다.
 
 ## Contributing
 
