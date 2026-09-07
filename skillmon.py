@@ -23,9 +23,10 @@ HOME = Path.home()
 CLAUDE_JSON = HOME / ".claude.json"            # skillUsage / pluginUsage 카운터
 USER_SETTINGS = HOME / ".claude/settings.json"
 INSTALLED = HOME / ".claude/plugins/installed_plugins.json"
+PLUGIN_CACHE = HOME / ".claude/plugins/cache"
 INVENTORY = [
     HOME / ".claude/skills",
-    HOME / ".claude/plugins/cache",   # 실제 설치본. marketplaces/ 는 클론 원본이라 제외
+    PLUGIN_CACHE,   # 실제 설치본. marketplaces/ 는 클론 원본이라 제외
     HOME / ".codex/skills",
 ]
 SKILL_MD_RE = re.compile(r"skills/([A-Za-z0-9._-]+)/SKILL\.md")
@@ -227,7 +228,12 @@ def build_rows(a):
         agents = sorted({s for s, _ in h})
         last = max([last or 0] + [t for _, t in h if t]) or None
 
-        if name in off_skills or pid in off_plugins:
+        orphan = (not pid and str(meta["path"]).startswith(str(PLUGIN_CACHE)))
+        if orphan:
+            # uninstall 은 등록만 지우고 cache 디렉터리는 남긴다. 컨텍스트에는
+            # 안 올라가니 비용 0이지만 디스크에 남아 있으므로 치울 수 있게 표시.
+            verdict, meta["desc_chars"] = "orphan", 0
+        elif name in off_skills or pid in off_plugins:
             verdict, meta["desc_chars"] = "off", 0
         elif window or lifetime:
             verdict = "keep"
@@ -273,7 +279,7 @@ def report(rows, mcp, a):
     if mcp:
         print("MCP 서버 호출: " + ", ".join(
             f"{k}={len(v)}" for k, v in sorted(mcp.items(), key=lambda x: -len(x[1]))[:8]))
-    print("판정: keep=사용흔적 있음 / off=이미 꺼둠(비용 0) / remove=윈도우·누적 모두 0 / ask=신호 없음(직접 확인)")
+    print("판정: keep=사용흔적 있음 / off=이미 꺼둠(비용 0) / orphan=uninstall 후 남은 파일 / remove=윈도우·누적 모두 0 / ask=신호 없음(직접 확인)")
     print("'누적'은 ~/.claude.json 내장 카운터(설치 이후 전체, Claude Code 한정), "
           "'윈도'는 트랜스크립트 기준이라 Codex 도 포함")
 
@@ -391,7 +397,7 @@ def main():
     else:
         report(shown, {} if acting else mcp, a)
 
-    targets = {"remove", "ask"} if a.include_ask else {"remove"}
+    targets = {"remove", "ask", "orphan"} if a.include_ask else {"remove", "orphan"}
     hit = [r for r in shown if r["verdict"] in targets]
     if a.off:
         turn_off(hit, a)
