@@ -72,6 +72,16 @@ def frontmatter(md):
     return out.get("name", ""), out.get("description", "")
 
 
+def disabled():
+    """이미 꺼둔 것. 컨텍스트에 안 올라가므로 비용 0으로 친다."""
+    try:
+        cfg = json.loads(USER_SETTINGS.read_text())
+    except (OSError, ValueError):
+        return set(), set()
+    return ({k for k, v in (cfg.get("skillOverrides") or {}).items() if v == "off"},
+            {k for k, v in (cfg.get("enabledPlugins") or {}).items() if v is False})
+
+
 def find_skills():
     """{name: {path, desc_chars}}"""
     out = {}
@@ -196,6 +206,7 @@ def build_rows(a):
     skills = find_skills()
     plugins = plugin_map()
     life, plugin_life = counters()
+    off_skills, off_plugins = disabled()
     hits, mcp = defaultdict(list), defaultdict(list)
     scan_claude(hits, mcp, cutoff)
     scan_codex(hits, cutoff)
@@ -216,7 +227,9 @@ def build_rows(a):
         agents = sorted({s for s, _ in h})
         last = max([last or 0] + [t for _, t in h if t]) or None
 
-        if window or lifetime:
+        if name in off_skills or pid in off_plugins:
+            verdict, meta["desc_chars"] = "off", 0
+        elif window or lifetime:
             verdict = "keep"
         elif sibling or not meta["desc_chars"]:
             # 플러그인은 쓰는데 이 스킬만 흔적이 없거나, frontmatter 가 없어
@@ -260,7 +273,7 @@ def report(rows, mcp, a):
     if mcp:
         print("MCP 서버 호출: " + ", ".join(
             f"{k}={len(v)}" for k, v in sorted(mcp.items(), key=lambda x: -len(x[1]))[:8]))
-    print("판정: keep=사용흔적 있음 / remove=윈도우·누적 모두 0 / ask=신호 없음(직접 확인)")
+    print("판정: keep=사용흔적 있음 / off=이미 꺼둠(비용 0) / remove=윈도우·누적 모두 0 / ask=신호 없음(직접 확인)")
     print("'누적'은 ~/.claude.json 내장 카운터(설치 이후 전체, Claude Code 한정), "
           "'윈도'는 트랜스크립트 기준이라 Codex 도 포함")
 
@@ -269,8 +282,10 @@ def report(rows, mcp, a):
 
 def turn_off(rows, a):
     """되돌릴 수 있는 비활성화. 파일은 그대로 두고 settings 만 건드린다."""
-    skills = [r["skill"] for r in rows if not r["plugin"]]
     plugs = dead_plugins(rows, a)
+    # 플러그인 스킬도 skillOverrides 로 개별로 끌 수 있다. 플러그인 전체가
+    # 대상일 때만 플러그인 단위 disable 로 올린다.
+    skills = [r["skill"] for r in rows if r["plugin"] not in plugs]
     if not skills and not plugs:
         print("끌 것 없음")
         return
@@ -353,6 +368,8 @@ def main():
     ap.add_argument("--off", action="store_true", help="settings 에서 끄기 (되돌릴 수 있음)")
     ap.add_argument("--prune", action="store_true", help="디스크에서 치우기")
     ap.add_argument("--keep", default="", help="쉼표구분, 절대 건드리지 않을 스킬")
+    ap.add_argument("--include-ask", action="store_true",
+                    help="판정보류(ask)까지 --off/--prune 대상에 포함")
     ap.add_argument("--json", action="store_true")
     ap.add_argument("-y", "--yes", action="store_true", help="확인 프롬프트 생략")
     a = ap.parse_args()
@@ -364,7 +381,8 @@ def main():
     acting = a.off or a.prune
     if a.unused or acting:
         keep = {s.strip() for s in a.keep.split(",") if s.strip()}
-        shown = [r for r in rows if r["verdict"] != "keep" and r["skill"] not in keep]
+        shown = [r for r in rows if r["verdict"] not in ("keep", "off")
+                 and r["skill"] not in keep]
     else:
         shown = rows
 
@@ -373,10 +391,12 @@ def main():
     else:
         report(shown, {} if acting else mcp, a)
 
+    targets = {"remove", "ask"} if a.include_ask else {"remove"}
+    hit = [r for r in shown if r["verdict"] in targets]
     if a.off:
-        turn_off([r for r in shown if r["verdict"] == "remove"], a)
+        turn_off(hit, a)
     elif a.prune:
-        prune([r for r in shown if r["verdict"] == "remove"], a)
+        prune(hit, a)
 
 
 def _selftest():
