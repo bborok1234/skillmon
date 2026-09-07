@@ -2,7 +2,9 @@
 
 **Find unused Claude Code and Codex skills, see what they cost you in context every turn, and remove them.**
 
-Agent skills are cheap to install and invisible to forget. A year in, your skill listing is 160 entries, most of which you have never invoked, and every single one of them is re-sent to the model on every turn. When the listing outgrows its context budget, Claude Code truncates the descriptions — so a pile of dead skills does not just burn tokens, it makes skill routing worse for the skills you actually use.
+Agent skills are cheap to install and invisible to forget. A year in, your skill listing is 160 entries, most of which you have never invoked, and every single one of them is re-sent to the model on every turn — you pay for all of them, on every request, forever.
+
+How much does that actually cost you in routing quality? We measured it rather than guessed: **at 2.5x the listing budget, routing accuracy did not move** (90% vs 90%, zero wrong-skill picks). See [experiments/skill-count-routing](experiments/skill-count-routing/) for the harness, the 80 runs, and the limitations. So this is not a correctness scare — it is a bill you are paying for nothing.
 
 `skillmon` is a single-file Python script (stdlib only, no install) that reads your local agent data and tells you exactly which skills are dead weight.
 
@@ -16,7 +18,7 @@ imagegen-frontend-mobile             41       0    96 codex   2026-09-06 keep
 ponytail-review                       0    5650   118 -       2026-09-07 keep   ponytail@ponytail
 
 스킬 159개 · 최근 180일 윈도우
-상시 컨텍스트 비용 8,660 토큰 / 목록 예산 2,000 (433%)  ← 예산 초과: 설명이 잘려 스킬 라우팅이 나빠진다
+상시 컨텍스트 비용 8,660 토큰 / 목록 예산 2,000 (433%)  ← 초과분은 설명이 잘린다
 미사용분이 먹는 몫 6,574 토큰 (매 턴, 전체의 75%)
 판정: keep 28 · remove 107 · ask 24
 ```
@@ -58,7 +60,7 @@ Signals it reads:
 - **`~/.claude/projects/**/*.jsonl`** — windowed usage: `Skill` tool calls, `<command-name>` slash invocations, `SKILL.md` reads, and `mcp__<server>__*` calls for MCP server counts.
 - **`~/.codex/sessions/**/*.jsonl`** — Codex usage, recovered from `SKILL.md` paths inside exec calls.
 
-Context cost is computed the way Claude Code actually computes it: skill name + description from the `SKILL.md` frontmatter, description capped at 1536 chars, ~4 chars per token, compared against the skill-listing budget of 1% of the context window.
+Context cost is computed the way Claude Code actually computes it: skill name + description from the `SKILL.md` frontmatter, description capped at 1536 chars, ~4 chars per token, compared against the skill-listing budget of 1% of the context window. Over budget, descriptions get truncated — measurably without hurting routing, so treat the percentage as a bill, not an alarm.
 
 ## Why not just use `/plugin stats`
 
@@ -86,7 +88,9 @@ The Codex gap matters more than it sounds. `~/.claude/skills/*` is very often a 
 
 ## 한국어
 
-코딩 에이전트에 스킬을 100개씩 깔아두면, 쓰지도 않는 스킬의 설명이 **매 턴 컨텍스트에 다시 올라갑니다.** 스킬 목록이 예산(컨텍스트의 1%)을 넘으면 설명이 잘려서, 정작 자주 쓰는 스킬의 라우팅까지 나빠집니다.
+코딩 에이전트에 스킬을 100개씩 깔아두면, 쓰지도 않는 스킬의 설명이 **매 턴 컨텍스트에 다시 올라갑니다.** 요청마다, 계속.
+
+그럼 라우팅 품질도 나빠지느냐 — 추측하지 않고 재봤습니다. 목록 예산의 2.5배(스킬 125개)에서도 **정확도가 그대로였습니다**(90% vs 90%, 엉뚱한 스킬 선택 0건). 하네스와 80회 실행 기록, 한계는 [experiments/skill-count-routing](experiments/skill-count-routing/) 에 있습니다. 즉 이건 고장 경고가 아니라, 안 쓰는 것에 매 턴 나가는 청구서입니다.
 
 `skillmon` 은 로컬 데이터만 읽어서 어떤 스킬이 죽어 있는지, 그게 매 턴 몇 토큰을 먹는지 보여주고 정리합니다. 파이썬 표준 라이브러리만 쓰는 단일 파일이라 설치가 없습니다.
 

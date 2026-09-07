@@ -34,6 +34,8 @@ MCP_TOOL_RE = re.compile(r"^mcp__([A-Za-z0-9_.-]+)__")
 FM_RE = re.compile(r"^---\n(.*?)\n---", re.S)
 
 # Claude Code 의 스킬 목록 예산: 컨텍스트의 1%, 스킬당 설명 1536자 상한.
+# 초과하면 설명이 잘린다. 라우팅 정확도까지 나빠지는지는 실측해 봤고
+# 예산 256% 에서도 저하가 없었다 - experiments/skill-count-routing 참고.
 DESC_CAP = 1536
 LISTING_BUDGET = 0.01
 CHARS_PER_TOKEN = 4
@@ -274,7 +276,7 @@ def report(rows, mcp, a):
     print(f"\n스킬 {len(rows)}개 · 최근 {a.days}일 윈도우")
     print(f"상시 컨텍스트 비용 {total:,} 토큰 / 목록 예산 {budget:,} "
           f"({total * 100 // max(budget, 1)}%)"
-          + ("  ← 예산 초과: 설명이 잘려 스킬 라우팅이 나빠진다" if total > budget else ""))
+          + ("  ← 초과분은 설명이 잘린다" if total > budget else ""))
     print(f"미사용분이 먹는 몫 {waste:,} 토큰 (매 턴, 전체의 {waste * 100 // max(total, 1)}%)")
     if mcp:
         print("MCP 서버 호출: " + ", ".join(

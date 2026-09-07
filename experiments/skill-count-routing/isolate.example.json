@@ -1,0 +1,6 @@
+{
+ "skillOverrides": {
+  "<every-global-skill-name>": "off"
+ },
+ "enabledPlugins": {}
+}
